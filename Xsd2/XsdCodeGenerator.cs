@@ -641,9 +641,17 @@ namespace Xsd2
                 typeReference.BaseType = newTypeName;
             }
 
-            if (typeReference.ArrayElementType != null && changedTypeNames.TryGetValue(typeReference.ArrayElementType.BaseType, out newTypeName))
+            if (typeReference.ArrayElementType != null)
             {
-                typeReference.ArrayElementType.BaseType = newTypeName;
+                FixTypeReference(changedTypeNames, typeReference.ArrayElementType);
+            }
+
+            if (typeReference.TypeArguments != null && typeReference.TypeArguments.Count != 0)
+            {
+                foreach (CodeTypeReference typeArgument in typeReference.TypeArguments)
+                {
+                    FixTypeReference(changedTypeNames, typeArgument);
+                }
             }
         }
 
