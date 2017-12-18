@@ -186,10 +186,10 @@ namespace Xsd2
 
         /// <summary>
         /// Shamelessly taken from Xsd2Code project
-        /// </summary>       
+        /// </summary>
         private bool ContainsTypeName(XmlSchema schema, CodeTypeDeclaration type)
         {
-            //TODO: Does not work for combined anonymous types 
+            //TODO: Does not work for combined anonymous types
             //fallback: Check if the namespace attribute of the type equals the namespace of the file.
             //first, find the XmlType attribute.
             var ns = ExtractNamespace(type);
