@@ -1,19 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using PetaTest;
 
 using Xsd2.Capitalizers;
+using Xunit;
 
 namespace Xsd2.Tests
 {
-    [TestFixture]
     public class GenerationTests
     {
-        [Test]
+        [Fact]
         public void Test1()
         {
             var options = new XsdCodeGeneratorOptions
@@ -29,7 +24,7 @@ namespace Xsd2.Tests
                     "System.Diagnostics.DebuggerStepThroughAttribute"
                 }
             };
-            
+
             using (var o = File.CreateText(@"Schemas\Xsd2Config.cs"))
             {
                 var generator = new XsdCodeGenerator() { Options = options };
@@ -37,7 +32,7 @@ namespace Xsd2.Tests
             }
         }
 
-        [Test(Active=false)]
+        [Fact(Skip = "")]
         public void Test2()
         {
             var options = new XsdCodeGeneratorOptions
@@ -60,7 +55,7 @@ namespace Xsd2.Tests
             }
         }
 
-        [Test(Active = true)]
+        [Fact]
         public void Test3()
         {
             var options = new XsdCodeGeneratorOptions
@@ -76,7 +71,7 @@ namespace Xsd2.Tests
                     "System.Diagnostics.DebuggerStepThroughAttribute"
                 }
             };
-            
+
             using (var o = File.CreateText(@"Schemas\Form.cs"))
             {
                 var generator = new XsdCodeGenerator() { Options = options };

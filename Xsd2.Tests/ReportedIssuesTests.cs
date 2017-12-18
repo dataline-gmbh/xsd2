@@ -1,20 +1,15 @@
-﻿using System;
-using System.CodeDom;
-using System.Collections.Generic;
+﻿using System.CodeDom;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using PetaTest;
 
 using Xsd2.Capitalizers;
+using Xunit;
 
 namespace Xsd2.Tests
 {
-    [TestFixture(Active=false)]
     public class ReportedIssuesTests
     {
-        [Test]
+        [Fact(Skip = "")]
         public void UppercaseNullablePropertiesAreGenerated()
         {
             var options = new XsdCodeGeneratorOptions
@@ -29,7 +24,7 @@ namespace Xsd2.Tests
                     "System.Diagnostics.DebuggerStepThroughAttribute"
                 }
             };
-            
+
             using (var o = File.CreateText(@"Schemas\Issue12.cs"))
             {
                 var generator = new XsdCodeGenerator()
@@ -39,7 +34,7 @@ namespace Xsd2.Tests
                     {
                         var upperCaseType = ns.Types.Cast<CodeTypeDeclaration>().Single(a => a.Name == "UpperCaseType");
                         var valueProp = (CodeMemberProperty)upperCaseType.Members.Cast<CodeTypeMember>().Single(a => a.Name == "Value");
-                        Assert.IsTrue(valueProp.Type.BaseType.Contains("Nullable"));
+                        Assert.Contains("Nullable", valueProp.Type.BaseType);
                     }
                 };
                 generator.Generate(new[] { @"Schemas\Issue12.xsd" }, o);
