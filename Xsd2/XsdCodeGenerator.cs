@@ -506,12 +506,32 @@ namespace Xsd2
                                     codeType.Members.Add(nullableProperty);
 
                                     foreach (CodeAttributeDeclaration attribute in property.CustomAttributes)
+                                    {
                                         if (attribute.Name == "System.Xml.Serialization.XmlAttributeAttribute")
-                                            attribute.Arguments.Add(new CodeAttributeArgument
+                                        {
+                                            var firstArgument = attribute.Arguments.Cast<CodeAttributeArgument>().FirstOrDefault();
+                                            if (firstArgument == null || !string.IsNullOrEmpty(firstArgument.Name))
                                             {
-                                                Name = "AttributeName",
-                                                Value = new CodePrimitiveExpression(property.Name)
-                                            });
+                                                attribute.Arguments.Add(new CodeAttributeArgument
+                                                {
+                                                    Name = "AttributeName",
+                                                    Value = new CodePrimitiveExpression(property.Name)
+                                                });
+                                            }
+                                        }
+                                        else if (attribute.Name == "System.Xml.Serialization.XmlElementAttribute")
+                                        {
+                                            var firstArgument = attribute.Arguments.Cast<CodeAttributeArgument>().FirstOrDefault();
+                                            if (firstArgument == null || !string.IsNullOrEmpty(firstArgument.Name))
+                                            {
+                                                attribute.Arguments.Add(new CodeAttributeArgument
+                                                {
+                                                    Name = "ElementName",
+                                                    Value = new CodePrimitiveExpression(property.Name)
+                                                });
+                                            }
+                                        }
+                                    }
 
                                     property.Name = "_" + property.Name;
                                     specified.Name = "_" + specified.Name;
