@@ -91,6 +91,38 @@ namespace Xsd2
             return (string) ((CodePrimitiveExpression) namespaceArgument.Value).Value;
         }
 
+        public static string GetXmlName(this CodeTypeMember member)
+        {
+            return GetXmlName(member, "System.Xml.Serialization.XmlTypeAttribute", "TypeName") ??
+                GetXmlName(member, "System.Xml.Serialization.XmlRootAttribute", "ElementName") ??
+                GetXmlName(member, "System.Xml.Serialization.XmlElementAttribute", "ElementName") ??
+                GetXmlName(member, "System.Xml.Serialization.XmlAttributeAttribute", "AttributeName") ??
+                member.Name;
+        }
+
+        private static string GetXmlName(CodeTypeMember member, string attributeTypeName, string nameParameterName)
+        {
+            var attribute = member
+                .CustomAttributes
+                .Cast<CodeAttributeDeclaration>()
+                .FirstOrDefault(x => x.Name == attributeTypeName);
+            if (attribute == null)
+                return null;
+
+            var namespaceArgument = attribute
+               .Arguments
+               .Cast<CodeAttributeArgument>()
+               .FirstOrDefault(x => x.Name == nameParameterName);
+            if (namespaceArgument != null)
+                return (string)((CodePrimitiveExpression)namespaceArgument.Value).Value;
+
+            var firstArgument = attribute.Arguments.Cast<CodeAttributeArgument>().FirstOrDefault();
+            if (firstArgument != null && string.IsNullOrEmpty(firstArgument.Name))
+                return (string)((CodePrimitiveExpression)firstArgument.Value).Value;
+
+            return null;
+        }
+
         public static IEnumerable<string> GetNamesFromItems(this CodeNamespace codeNamespace, string typeName)
         {
             foreach (CodeTypeDeclaration codeType in codeNamespace.Types)

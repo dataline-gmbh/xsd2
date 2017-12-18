@@ -199,12 +199,14 @@ namespace Xsd2
             if (!Options.ExcludeImportedTypesByNameAndNamespace)
                 return true;
 
+            string typeName = type.GetXmlName();
+
             foreach (var item in schema.Items)
             {
                 var complexItem = item as XmlSchemaComplexType;
                 if (complexItem != null)
                 {
-                    if (complexItem.Name == type.Name)
+                    if (complexItem.Name == typeName)
                     {
                         return true;
                     }
@@ -213,7 +215,7 @@ namespace Xsd2
                 var simpleItem = item as XmlSchemaSimpleType;
                 if (simpleItem != null)
                 {
-                    if (simpleItem.Name == type.Name)
+                    if (simpleItem.Name == typeName)
                     {
                         return true;
                     }
@@ -223,7 +225,7 @@ namespace Xsd2
                 var elementItem = item as XmlSchemaElement;
                 if (elementItem != null)
                 {
-                    if (elementItem.Name == type.Name)
+                    if (elementItem.Name == typeName)
                     {
                         return true;
                     }
