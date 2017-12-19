@@ -21,7 +21,7 @@ namespace Xsd2.Cmdlets
         [Parameter(Mandatory = true, Position = 0)]
         public CapitalizerType Type { get; set; }
 
-        [Parameter]
+        [Parameter(Position = 1)]
         public object Parameter { get; set; }
 
         protected override void ProcessRecord()
