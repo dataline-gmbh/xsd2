@@ -456,6 +456,28 @@ namespace Xsd2
                             }
                         }
 
+                        string[] validXmlAttributeNames =
+                        {
+                            "System.Xml.Serialization.XmlEnumAttribute",
+                            "System.Xml.Serialization.XmlTextAttribute",
+                            "System.Xml.Serialization.XmlIgnoreAttribute",
+                            "System.Xml.Serialization.XmlAttributeAttribute",
+                            "System.Xml.Serialization.XmlElementAttribute",
+                            "System.Xml.Serialization.XmlAnyAttributeAttribute",
+                            "System.Xml.Serialization.XmlAnyElementAttribute",
+                        };
+
+                        var customAttributes = property.CustomAttributes.Cast<CodeAttributeDeclaration>();
+                        var customAttributeNames = new HashSet<string>(customAttributes.Select(x => x.Name));
+                        if (!customAttributeNames.Overlaps(validXmlAttributeNames))
+                        {
+                            // It is implied that this is an xml element. Explicitly add the corresponding attribute.
+                            property.CustomAttributes.Add(new CodeAttributeDeclaration
+                            {
+                                Name = "System.Xml.Serialization.XmlElementAttribute"
+                            });
+                        }
+
                         if (Options.UseLists && property.Type.ArrayRank > 0)
                         {
                             CodeTypeReference type = new CodeTypeReference(typeof(List<>))
@@ -517,13 +539,10 @@ namespace Xsd2
 
                                     codeType.Members.Add(nullableProperty);
 
-                                    bool? isElement = null;
                                     foreach (CodeAttributeDeclaration attribute in property.CustomAttributes)
                                     {
                                         if (attribute.Name == "System.Xml.Serialization.XmlAttributeAttribute")
                                         {
-                                            isElement = false;
-
                                             var firstArgument = attribute.Arguments.Cast<CodeAttributeArgument>().FirstOrDefault();
                                             if (firstArgument == null || !string.IsNullOrEmpty(firstArgument.Name))
                                             {
@@ -536,8 +555,6 @@ namespace Xsd2
                                         }
                                         else if (attribute.Name == "System.Xml.Serialization.XmlElementAttribute")
                                         {
-                                            isElement = true;
-
                                             var firstArgument = attribute.Arguments.Cast<CodeAttributeArgument>().FirstOrDefault();
                                             if (firstArgument == null || !string.IsNullOrEmpty(firstArgument.Name))
                                             {
@@ -548,23 +565,6 @@ namespace Xsd2
                                                 });
                                             }
                                         }
-                                    }
-
-                                    if (isElement == null)
-                                    {
-                                        // Imply an XmlElement
-                                        property.CustomAttributes.Add(new CodeAttributeDeclaration
-                                        {
-                                            Name = "System.Xml.Serialization.XmlElementAttribute",
-                                            Arguments =
-                                            {
-                                                new CodeAttributeArgument
-                                                {
-                                                    Name = "ElementName",
-                                                    Value = new CodePrimitiveExpression(property.Name)
-                                                }
-                                            }
-                                        });
                                     }
 
                                     property.Name = "_" + property.Name;
