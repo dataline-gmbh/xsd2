@@ -89,6 +89,7 @@ namespace Xsd2.Cmdlets
             Options = new XsdCodeGeneratorOptions
             {
                 UseNullableTypes = UseNullable.ToBool() || All.ToBool(),
+                HideUnderlyingNullableProperties = UseNullable.ToBool() || All.ToBool(),
                 OutputNamespace = Namespace,
                 MixedContent = MixedContent.ToBool(),
                 ExcludeImportedTypes = ExcludeImports.ToBool() || All.ToBool(),
