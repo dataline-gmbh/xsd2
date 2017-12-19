@@ -113,8 +113,7 @@ namespace Xsd2
 
             ImproveCodeDom(codeNamespace);
 
-            foreach (var xsd in inputs)
-                RemoveElements(codeNamespace, xsd);
+            RemoveElements(codeNamespace, inputs);
 
             if (OnValidateGeneratedCode != null)
                 foreach (var xsd in inputs)
@@ -256,13 +255,13 @@ namespace Xsd2
             return null;
         }
 
-        private void RemoveElements(CodeNamespace codeNamespace, XmlSchema schema)
+        private void RemoveElements(CodeNamespace codeNamespace, IReadOnlyCollection<XmlSchema> schemas)
         {
             var removedTypes = new List<CodeTypeDeclaration>();
 
             foreach (CodeTypeDeclaration codeType in codeNamespace.Types)
             {
-                if (Options.ExcludeImportedTypes && Options.Imports != null && Options.Imports.Count > 0 && !ContainsTypeName(schema, codeType))
+                if (Options.ExcludeImportedTypes && Options.Imports != null && Options.Imports.Count > 0 && !schemas.Any(schema => ContainsTypeName(schema, codeType)))
                 {
                     removedTypes.Add(codeType);
                     continue;
