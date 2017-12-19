@@ -494,6 +494,30 @@ namespace Xsd2
                         bool capitalizeProperty;
                         if (!isSpecifiedProperty)
                         {
+                            if (Options.PreserveOrder)
+                            {
+                                if (!property.CustomAttributes.Cast<CodeAttributeDeclaration>().Any(x => nonElementAttributes.Contains(x.Name)))
+                                {
+                                    var elementAttributes = property
+                                        .CustomAttributes.Cast<CodeAttributeDeclaration>()
+                                        .Where(x => x.Name == "System.Xml.Serialization.XmlElementAttribute")
+                                        .ToList();
+                                    if (elementAttributes.Count == 0)
+                                    {
+                                        var elementAttribute = new CodeAttributeDeclaration("System.Xml.Serialization.XmlElementAttribute");
+                                        property.CustomAttributes.Add(elementAttribute);
+                                        elementAttributes.Add(elementAttribute);
+                                    }
+
+                                    foreach (var elementAttribute in elementAttributes)
+                                    {
+                                        elementAttribute.Arguments.Add(new CodeAttributeArgument("Order", new CodePrimitiveExpression(orderIndex)));
+                                    }
+
+                                    orderIndex += 1;
+                                }
+                            }
+
                             if (Options.UseNullableTypes)
                             {
                                 var fieldName = GetFieldName(property.Name, "Field");
@@ -577,30 +601,6 @@ namespace Xsd2
                                     }
 
                                     property = nullableProperty;
-                                }
-                            }
-
-                            if (Options.PreserveOrder)
-                            {
-                                if (!property.CustomAttributes.Cast<CodeAttributeDeclaration>().Any(x => nonElementAttributes.Contains(x.Name)))
-                                {
-                                    var elementAttributes = property
-                                        .CustomAttributes.Cast<CodeAttributeDeclaration>()
-                                        .Where(x => x.Name == "System.Xml.Serialization.XmlElementAttribute")
-                                        .ToList();
-                                    if (elementAttributes.Count == 0)
-                                    {
-                                        var elementAttribute = new CodeAttributeDeclaration("System.Xml.Serialization.XmlElementAttribute");
-                                        property.CustomAttributes.Add(elementAttribute);
-                                        elementAttributes.Add(elementAttribute);
-                                    }
-
-                                    foreach (var elementAttribute in elementAttributes)
-                                    {
-                                        elementAttribute.Arguments.Add(new CodeAttributeArgument("Order", new CodePrimitiveExpression(orderIndex)));
-                                    }
-
-                                    orderIndex += 1;
                                 }
                             }
 
