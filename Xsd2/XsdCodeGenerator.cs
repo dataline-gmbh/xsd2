@@ -281,7 +281,7 @@ namespace Xsd2
                         {
                             case "System.Xml.Serialization.XmlRootAttribute":
                                 var nullableArgument = att.Arguments.Cast<CodeAttributeArgument>().FirstOrDefault(x => x.Name == "IsNullable");
-                                if (nullableArgument != null && (bool)((CodePrimitiveExpression)nullableArgument.Value).Value)
+                                if (codeType.IsEnum || (nullableArgument != null && (bool)((CodePrimitiveExpression)nullableArgument.Value).Value))
                                 {
                                     // Remove nullable root attribute
                                     attributesToRemove.Add(att);
