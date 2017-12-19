@@ -111,8 +111,10 @@ namespace Xsd2
                 codeExporter.ExportTypeMapping(map);
             }
 
+            ImproveCodeDom(codeNamespace);
+
             foreach (var xsd in inputs)
-                ImproveCodeDom(codeNamespace, xsd);
+                RemoveElements(codeNamespace, xsd);
 
             if (OnValidateGeneratedCode != null)
                 foreach (var xsd in inputs)
@@ -254,7 +256,52 @@ namespace Xsd2
             return null;
         }
 
-        private void ImproveCodeDom(CodeNamespace codeNamespace, XmlSchema schema)
+        private void RemoveElements(CodeNamespace codeNamespace, XmlSchema schema)
+        {
+            var removedTypes = new List<CodeTypeDeclaration>();
+
+            foreach (CodeTypeDeclaration codeType in codeNamespace.Types)
+            {
+                if (Options.ExcludeImportedTypes && Options.Imports != null && Options.Imports.Count > 0 && !ContainsTypeName(schema, codeType))
+                {
+                    removedTypes.Add(codeType);
+                    continue;
+                }
+
+                var attributesToRemove = new HashSet<CodeAttributeDeclaration>();
+                foreach (CodeAttributeDeclaration att in codeType.CustomAttributes)
+                {
+                    if (Options.AttributesToRemove.Contains(att.Name))
+                    {
+                        attributesToRemove.Add(att);
+                    }
+                    else
+                    {
+                        switch (att.Name)
+                        {
+                            case "System.Xml.Serialization.XmlRootAttribute":
+                                var nullableArgument = att.Arguments.Cast<CodeAttributeArgument>().FirstOrDefault(x => x.Name == "IsNullable");
+                                if (nullableArgument != null && (bool)((CodePrimitiveExpression)nullableArgument.Value).Value)
+                                {
+                                    // Remove nullable root attribute
+                                    attributesToRemove.Add(att);
+                                }
+                                break;
+                        }
+                    }
+                }
+
+                // Remove attributes
+                foreach (var att in attributesToRemove)
+                    codeType.CustomAttributes.Remove(att);
+            }
+
+            // Remove types
+            foreach (var rt in removedTypes)
+                codeNamespace.Types.Remove(rt);
+        }
+
+        private void ImproveCodeDom(CodeNamespace codeNamespace)
         {
             var nonElementAttributes = new HashSet<string>(new[]
             {
@@ -275,8 +322,6 @@ namespace Xsd2
             var neverBrowsableAttribute = new CodeAttributeDeclaration("System.ComponentModel.EditorBrowsable",
                 new CodeAttributeArgument(new CodeFieldReferenceExpression(new CodeTypeReferenceExpression("System.ComponentModel.EditorBrowsableState"), "Never")));
 
-            var removedTypes = new List<CodeTypeDeclaration>();
-
             var changedTypeNames = new Dictionary<string, string>();
             var newTypeNames = new HashSet<string>();
 
@@ -289,41 +334,6 @@ namespace Xsd2
 
             foreach (CodeTypeDeclaration codeType in codeNamespace.Types)
             {
-                if (Options.ExcludeImportedTypes && Options.Imports != null && Options.Imports.Count > 0)
-                    if (!ContainsTypeName(schema, codeType))
-                    {
-                        removedTypes.Add(codeType);
-                        continue;
-                    }
-
-                var attributesToRemove = new HashSet<CodeAttributeDeclaration>();
-                foreach (CodeAttributeDeclaration att in codeType.CustomAttributes)
-                {
-                    if (Options.AttributesToRemove.Contains(att.Name))
-                    {
-                        attributesToRemove.Add(att);
-                    }
-                    else
-                    {
-                        switch (att.Name)
-                        {
-                            case "System.Xml.Serialization.XmlRootAttribute":
-                                var nullableArgument = att.Arguments.Cast<CodeAttributeArgument>().FirstOrDefault(x => x.Name == "IsNullable");
-                                if (nullableArgument != null && (bool) ((CodePrimitiveExpression) nullableArgument.Value).Value)
-                                {
-                                    // Remove nullable root attribute
-                                    attributesToRemove.Add(att);
-                                }
-                                break;
-                        }
-                    }
-                }
-
-                foreach (var att in attributesToRemove)
-                {
-                    codeType.CustomAttributes.Remove(att);
-                }
-
                 if (Options.TypeNameCapitalizer != null)
                 {
                     var newName = Options.TypeNameCapitalizer.Capitalize(codeNamespace, codeType);
@@ -605,10 +615,6 @@ namespace Xsd2
                     }
                 }
             }
-
-            // Remove types
-            foreach (var rt in removedTypes)
-                codeNamespace.Types.Remove(rt);
 
             // Fixup changed type names
             if (changedTypeNames.Count != 0)
