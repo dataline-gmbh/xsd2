@@ -113,7 +113,9 @@ namespace Xsd2
 
             ImproveCodeDom(codeNamespace);
 
-            RemoveElements(codeNamespace, inputs);
+            var usageTree = new UsageTree(codeNamespace);
+
+            RemoveElements(codeNamespace, inputs, usageTree);
 
             if (OnValidateGeneratedCode != null)
                 foreach (var xsd in inputs)
@@ -255,18 +257,11 @@ namespace Xsd2
             return null;
         }
 
-        private void RemoveElements(CodeNamespace codeNamespace, IReadOnlyCollection<XmlSchema> schemas)
+        private void RemoveElements(CodeNamespace codeNamespace, IReadOnlyCollection<XmlSchema> inputs, UsageTree usageTree)
         {
-            var removedTypes = new List<CodeTypeDeclaration>();
-
+            // Remove attributes
             foreach (CodeTypeDeclaration codeType in codeNamespace.Types)
             {
-                if (Options.ExcludeImportedTypes && Options.Imports != null && Options.Imports.Count > 0 && !schemas.Any(schema => ContainsTypeName(schema, codeType)))
-                {
-                    removedTypes.Add(codeType);
-                    continue;
-                }
-
                 var attributesToRemove = new HashSet<CodeAttributeDeclaration>();
                 foreach (CodeAttributeDeclaration att in codeType.CustomAttributes)
                 {
@@ -290,14 +285,35 @@ namespace Xsd2
                     }
                 }
 
-                // Remove attributes
                 foreach (var att in attributesToRemove)
                     codeType.CustomAttributes.Remove(att);
             }
 
             // Remove types
-            foreach (var rt in removedTypes)
-                codeNamespace.Types.Remove(rt);
+            if (Options.ExcludeImportedTypes && Options.Imports != null && Options.Imports.Count > 0)
+            {
+                var removedTypes = codeNamespace.Types.Cast<CodeTypeDeclaration>().ToList();
+                var anonymousTypes = new List<CodeTypeDeclaration>();
+
+                while (removedTypes.RemoveAll(codeType =>
+                {
+                    if (codeType.IsAnonymousType() || codeType.IsIncludeInSchemaFalse())
+                    {
+                        if (!usageTree.LookupUsages(codeType).All(x => removedTypes.Contains(x.Type)))
+                            return true;
+                    }
+                    else if (inputs.Any(schema => ContainsTypeName(schema, codeType)))
+                    {
+                        return true;
+                    }
+
+                    return false;
+                }) > 0);
+
+                // Remove types
+                foreach (var rt in removedTypes)
+                    codeNamespace.Types.Remove(rt);
+            }
         }
 
         private void ImproveCodeDom(CodeNamespace codeNamespace)
@@ -757,6 +773,55 @@ namespace Xsd2
         private static string GetFieldName(string p, string suffix = null)
         {
             return p.Substring(0, 1).ToLower() + p.Substring(1) + suffix;
+        }
+
+        private class UsageTree
+        {
+            private readonly ILookup<string, Reference> _tree;
+
+            public UsageTree(CodeNamespace codeNamespace)
+            {
+                _tree = BuildReferences(codeNamespace).ToLookup(x => x.Item1.BaseType, x => x.Item2);
+            }
+
+            public IEnumerable<Reference> LookupUsages(CodeTypeDeclaration typeDeclaration)
+            {
+                return _tree[typeDeclaration.Name];
+            }
+
+            private static IEnumerable<Tuple<CodeTypeReference, Reference>> BuildReferences(CodeNamespace codeNamespace)
+            {
+                foreach (CodeTypeDeclaration codeType in codeNamespace.Types)
+                {
+                    foreach (CodeTypeMember member in codeType.Members)
+                    {
+                        if (member is CodeMemberProperty property)
+                        {
+                            var reference = new Reference(codeType, property);
+
+                            yield return Tuple.Create(property.Type, reference);
+
+                            foreach (var xmlType in property.GetXmlTypes())
+                            {
+                                yield return Tuple.Create(xmlType, reference);
+                            }
+                        }
+                    }
+                }
+            }
+
+            public struct Reference
+            {
+                public Reference(CodeTypeDeclaration type, CodeMemberProperty property)
+                {
+                    Type = type;
+                    Property = property;
+                }
+
+                public CodeTypeDeclaration Type { get; }
+
+                public CodeMemberProperty Property { get; }
+            }
         }
     }
 }
