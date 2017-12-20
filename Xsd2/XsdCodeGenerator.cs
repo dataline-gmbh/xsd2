@@ -778,7 +778,7 @@ namespace Xsd2
 
             public UsageTree(CodeNamespace codeNamespace)
             {
-                _tree = BuildReferences(codeNamespace).ToLookup(x => x.Item1.BaseType, x => x.Item2);
+                _tree = BuildReferences(codeNamespace).ToLookup(x => GetElementType(x.Item1), x => x.Item2);
             }
 
             public IEnumerable<Reference> LookupUsages(CodeTypeDeclaration typeDeclaration)
@@ -805,6 +805,15 @@ namespace Xsd2
                         }
                     }
                 }
+            }
+
+            private static string GetElementType(CodeTypeReference typeReference)
+            {
+                if (typeReference.ArrayRank != 0)
+                    return typeReference.ArrayElementType.BaseType;
+                if (typeReference.BaseType.EndsWith(".List`1", StringComparison.Ordinal))
+                    return typeReference.TypeArguments[0].BaseType;
+                return typeReference.BaseType;
             }
 
             public struct Reference
