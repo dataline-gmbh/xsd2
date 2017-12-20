@@ -294,7 +294,7 @@ namespace Xsd2
 
                 while (removedTypes.RemoveAll(codeType =>
                 {
-                    if (codeType.IsAnonymousType() || codeType.IsIncludeInSchemaFalse())
+                    if ((codeType.IsAnonymousType() && !codeType.IsRootType()) || codeType.IsIncludeInSchemaFalse())
                     {
                         if (!usageTree.LookupUsages(codeType).All(x => removedTypes.Contains(x.Type)))
                             return true;

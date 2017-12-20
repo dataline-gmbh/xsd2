@@ -63,6 +63,15 @@ namespace Xsd2
             return attribute.IsAnonymousTypeArgument();
         }
 
+        public static bool IsRootType(this CodeTypeMember member)
+        {
+            var attribute = member
+                .CustomAttributes
+                .Cast<CodeAttributeDeclaration>()
+                .FirstOrDefault(x => x.Name == "System.Xml.Serialization.XmlRootAttribute");
+            return attribute != null;
+        }
+
         public static bool IsAnonymousTypeArgument(this CodeAttributeDeclaration attribute)
         {
             var anonymousTypeArgument = attribute
