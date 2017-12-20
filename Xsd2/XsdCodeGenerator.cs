@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Reflection;
 using System.Xml.Schema;
 using System.Xml.Serialization;
 using System.CodeDom;
@@ -10,9 +10,6 @@ using System.CodeDom.Compiler;
 using System.ComponentModel;
 
 using Microsoft.CSharp;
-using System.IO;
-using System.Diagnostics;
-
 using Microsoft.VisualBasic;
 
 using Xsd2.Capitalizers;
