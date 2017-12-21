@@ -62,6 +62,9 @@ namespace Xsd2.Cmdlets
         [Parameter(HelpMessage = "Sets namespaces to use")]
         public string[] Usings { get; set; }
 
+        [Parameter(HelpMessage = "Sets a list of xml type names to exclude")]
+        public string[] ExcludeXmlTypes { get; set; }
+
         [Parameter(ParameterSetName = ExplicitParameterSetName, HelpMessage = "Exclude imported types")]
         public SwitchParameter ExcludeImports { get; set; }
 
@@ -105,7 +108,8 @@ namespace Xsd2.Cmdlets
                 AttributesToRemove = new System.Collections.Generic.HashSet<string>(RemoveAttributes ?? Enumerable.Empty<string>()),
                 EnumValueCapitalizer = EnumCapitalizer ?? new NoneCapitalizer(),
                 TypeNameCapitalizer = TypeCapitalizer ?? new NoneCapitalizer(),
-                PropertyNameCapitalizer = PropertyCapitalizer ?? new NoneCapitalizer()
+                PropertyNameCapitalizer = PropertyCapitalizer ?? new NoneCapitalizer(),
+                ExcludeXmlTypes = new System.Collections.Generic.HashSet<string>(ExcludeXmlTypes ?? Enumerable.Empty<string>())
             };
 
             if (PclTarget)

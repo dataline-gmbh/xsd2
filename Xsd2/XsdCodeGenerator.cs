@@ -86,7 +86,7 @@ namespace Xsd2
             foreach (var xsd in inputs)
                 foreach (XmlSchemaElement schemaElement in xsd.Elements.Values)
                 {
-                    if (!ElementBelongsToImportedSchema(schemaElement))
+                    if (!ElementBelongsToImportedSchema(schemaElement) && !ExcludeName(schemaElement))
                         maps.Add(schemaImporter.ImportTypeMapping(schemaElement.QualifiedName));
                 }
 
@@ -94,12 +94,18 @@ namespace Xsd2
             foreach (var xsd in inputs)
                 foreach (XmlSchemaComplexType schemaElement in xsd.Items.OfType<XmlSchemaComplexType>())
                 {
+                    if (ExcludeName(schemaElement))
+                        continue;
+
                     maps.Add(schemaImporter.ImportSchemaType(schemaElement.QualifiedName));
                 }
 
             foreach (var xsd in inputs)
                 foreach (XmlSchemaSimpleType schemaElement in xsd.Items.OfType<XmlSchemaSimpleType>())
                 {
+                    if (ExcludeName(schemaElement))
+                        continue;
+
                     maps.Add(schemaImporter.ImportSchemaType(schemaElement.QualifiedName));
                 }
 
@@ -182,6 +188,24 @@ namespace Xsd2
                     node = node.Parent;
             }
             return false;
+        }
+
+        private bool ExcludeName(XmlSchemaType type)
+        {
+            return ExcludeName(type.QualifiedName.ToString());
+        }
+
+        private bool ExcludeName(XmlSchemaElement type)
+        {
+            return ExcludeName(type.QualifiedName.ToString());
+        }
+
+        private bool ExcludeName(string qualifiedName)
+        {
+            if (Options.ExcludeXmlTypes == null)
+                return false;
+
+            return Options.ExcludeXmlTypes.Contains(qualifiedName);
         }
 
         /// <summary>
