@@ -429,6 +429,14 @@ namespace Xsd2
 
                 var binaryDataTypes = new[] { "hexBinary", "base64Binary" };
 
+                bool IsItemsChoiceType(CodeTypeReference reference) => reference.BaseType.StartsWith("ItemsChoiceType");
+
+                var fieldNameToPropertyMapping = members.Values.OfType<CodeMemberProperty>().Select(x => new
+                {
+                    Property = x,
+                    FieldName = (x.GetStatements.OfType<CodeMethodReturnStatement>().SingleOrDefault()?.Expression as CodeFieldReferenceExpression)?.FieldName
+                }).Where(x => x.FieldName != null).ToDictionary(x => x.FieldName, x => x.Property);
+
                 var orderIndex = 0;
                 foreach (CodeTypeMember member in members.Values)
                 {
@@ -436,14 +444,11 @@ namespace Xsd2
                     {
                         CodeMemberField field = (CodeMemberField)member;
 
-                        CodeMemberProperty backedProperty = null;
-                        if (field.Name.EndsWith("Field"))
-                        {
-                            var originalName = field.Name.Substring(0, field.Name.Length - 5);
-                            backedProperty = members.Values.OfType<CodeMemberProperty>().FirstOrDefault(x => x.GetXmlName() == originalName);
-                        }
+                        if (!fieldNameToPropertyMapping.TryGetValue(field.Name, out var backedProperty))
+                            backedProperty = null;
 
                         bool isBinaryDataType = binaryDataTypes.Contains(backedProperty?.GetXmlDataType());
+                        bool isItems = IsItemsChoiceType(field.Type) || backedProperty?.HasChoiceIdentifierAttribute() == true;
 
                         if (mixedContentDetected)
                         {
@@ -458,7 +463,7 @@ namespace Xsd2
                             }
                         }
 
-                        if (Options.UseLists && field.Type.ArrayRank > 0 && !isBinaryDataType)
+                        if (Options.UseLists && field.Type.ArrayRank > 0 && !isBinaryDataType && !isItems)
                         {
                             CodeTypeReference type = new CodeTypeReference(typeof(List<>))
                             {
@@ -490,6 +495,7 @@ namespace Xsd2
                         var isSpecifiedProperty = property.Name.EndsWith("Specified") && members.ContainsKey(property.Name.Substring(0, property.Name.Length - 9));
 
                         bool isBinaryDataType = binaryDataTypes.Contains(property.GetXmlDataType());
+                        bool isItems = IsItemsChoiceType(property.Type) || property.HasChoiceIdentifierAttribute();
 
                         if (mixedContentDetected)
                         {
@@ -541,7 +547,7 @@ namespace Xsd2
                             }
                         }
 
-                        if (Options.UseLists && property.Type.ArrayRank > 0 && !isBinaryDataType)
+                        if (Options.UseLists && property.Type.ArrayRank > 0 && !isBinaryDataType && !isItems)
                         {
                             CodeTypeReference type = new CodeTypeReference(typeof(List<>))
                             {

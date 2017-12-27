@@ -81,6 +81,14 @@ namespace Xsd2
             return anonymousTypeArgument != null;
         }
 
+        public static bool HasChoiceIdentifierAttribute(this CodeTypeMember member)
+        {
+            return member
+                .CustomAttributes
+                .Cast<CodeAttributeDeclaration>()
+                .Any(x => x.Name == "System.Xml.Serialization.XmlChoiceIdentifierAttribute");
+        }
+
         public static bool IsIncludeInSchemaFalse(this CodeTypeMember member)
         {
             var attribute = member
