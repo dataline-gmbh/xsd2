@@ -427,12 +427,23 @@ namespace Xsd2
 
                 bool mixedContentDetected = Options.MixedContent && members.ContainsKey("textField") && members.ContainsKey("itemsField");
 
+                var binaryDataTypes = new[] { "hexBinary", "base64Binary" };
+
                 var orderIndex = 0;
                 foreach (CodeTypeMember member in members.Values)
                 {
                     if (member is CodeMemberField)
                     {
                         CodeMemberField field = (CodeMemberField)member;
+
+                        CodeMemberProperty backedProperty = null;
+                        if (field.Name.EndsWith("Field"))
+                        {
+                            var originalName = field.Name.Substring(0, field.Name.Length - 5);
+                            backedProperty = members.Values.OfType<CodeMemberProperty>().FirstOrDefault(x => x.GetXmlName() == originalName);
+                        }
+
+                        bool isBinaryDataType = binaryDataTypes.Contains(backedProperty?.GetXmlDataType());
 
                         if (mixedContentDetected)
                         {
@@ -447,7 +458,7 @@ namespace Xsd2
                             }
                         }
 
-                        if (Options.UseLists && field.Type.ArrayRank > 0)
+                        if (Options.UseLists && field.Type.ArrayRank > 0 && !isBinaryDataType)
                         {
                             CodeTypeReference type = new CodeTypeReference(typeof(List<>))
                             {
@@ -477,6 +488,8 @@ namespace Xsd2
 
                         // Is this "*Specified" property part of a "propertyName" and "propertyNameSpecified" combination?
                         var isSpecifiedProperty = property.Name.EndsWith("Specified") && members.ContainsKey(property.Name.Substring(0, property.Name.Length - 9));
+
+                        bool isBinaryDataType = binaryDataTypes.Contains(property.GetXmlDataType());
 
                         if (mixedContentDetected)
                         {
@@ -514,7 +527,7 @@ namespace Xsd2
                             });
                         }
 
-                        if (Options.UseLists && property.Type.ArrayRank > 0)
+                        if (Options.UseLists && property.Type.ArrayRank > 0 && !isBinaryDataType)
                         {
                             CodeTypeReference type = new CodeTypeReference(typeof(List<>))
                             {

@@ -162,6 +162,27 @@ namespace Xsd2
             return attributes.Select(GetTypeName).Where(x => x != null).ToArray();
         }
 
+        public static string GetXmlDataType(this CodeTypeMember member)
+        {
+            var attribute = member
+                .CustomAttributes
+                .Cast<CodeAttributeDeclaration>()
+                .FirstOrDefault(x => x.Name == "System.Xml.Serialization.XmlElementAttribute" || x.Name == "System.Xml.Serialization.XmlAttributeAttribute");
+
+            if (attribute == null)
+                return null;
+
+            var dataTypeArgument = attribute
+                .Arguments
+                .Cast<CodeAttributeArgument>()
+                .FirstOrDefault(x => x.Name == "DataType");
+
+            if (dataTypeArgument == null)
+                return null;
+
+            return (string)((CodePrimitiveExpression)dataTypeArgument.Value).Value;
+        }
+
         private static string GetXmlName(CodeTypeMember member, string attributeTypeName, string nameParameterName)
         {
             var attribute = member
