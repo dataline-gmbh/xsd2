@@ -520,11 +520,25 @@ namespace Xsd2
                         var customAttributeNames = new HashSet<string>(customAttributes.Select(x => x.Name));
                         if (!customAttributeNames.Overlaps(validXmlAttributeNames))
                         {
-                            // It is implied that this is an xml element. Explicitly add the corresponding attribute.
-                            property.CustomAttributes.Add(new CodeAttributeDeclaration
+                            // is this an array item?
+                            bool arrayItem = property
+                                .CustomAttributes.Cast<CodeAttributeDeclaration>()
+                                .Any(x => x.Name == "System.Xml.Serialization.XmlArrayItemAttribute");
+                            if (arrayItem)
                             {
-                                Name = "System.Xml.Serialization.XmlElementAttribute"
-                            });
+                                property.CustomAttributes.Add(new CodeAttributeDeclaration
+                                {
+                                    Name = "System.Xml.Serialization.XmlArrayAttribute"
+                                });
+                            }
+                            else
+                            {
+                                // It is implied that this is an xml element. Explicitly add the corresponding attribute.
+                                property.CustomAttributes.Add(new CodeAttributeDeclaration
+                                {
+                                    Name = "System.Xml.Serialization.XmlElementAttribute"
+                                });
+                            }
                         }
 
                         if (Options.UseLists && property.Type.ArrayRank > 0 && !isBinaryDataType)
@@ -549,13 +563,12 @@ namespace Xsd2
                                 {
                                     var elementAttributes = property
                                         .CustomAttributes.Cast<CodeAttributeDeclaration>()
-                                        .Where(x => x.Name == "System.Xml.Serialization.XmlElementAttribute")
+                                        .Where(x => x.Name == "System.Xml.Serialization.XmlElementAttribute" || x.Name == "System.Xml.Serialization.XmlArrayAttribute")
                                         .ToList();
                                     if (elementAttributes.Count == 0)
                                     {
-                                        var elementAttribute = new CodeAttributeDeclaration("System.Xml.Serialization.XmlElementAttribute");
-                                        property.CustomAttributes.Add(elementAttribute);
-                                        elementAttributes.Add(elementAttribute);
+                                        // This should not happen (we implicitly add either XmlElementAttribute or XmlArrayAttribute above)
+                                        throw new Exception("should not happen");
                                     }
 
                                     foreach (var elementAttribute in elementAttributes)
