@@ -175,7 +175,9 @@ namespace Xsd2
             var attribute = member
                 .CustomAttributes
                 .Cast<CodeAttributeDeclaration>()
-                .FirstOrDefault(x => x.Name == "System.Xml.Serialization.XmlElementAttribute" || x.Name == "System.Xml.Serialization.XmlAttributeAttribute");
+                .FirstOrDefault(x => x.Name == "System.Xml.Serialization.XmlElementAttribute" ||
+                    x.Name == "System.Xml.Serialization.XmlAttributeAttribute" ||
+                    x.Name == "System.Xml.Serialization.XmlTextAttribute");
 
             if (attribute == null)
                 return null;
