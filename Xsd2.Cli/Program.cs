@@ -19,7 +19,8 @@ namespace Xsd2.Cli
                     MixedContent = false,
                     ExcludeImportedTypes = false,
                     Imports = new List<string>(),
-                    UsingNamespaces = new List<string>()
+                    UsingNamespaces = new List<string>(),
+                    AdditionalRootTypes = new HashSet<string>()
                 };
 
                 String outputDirectory = null;
@@ -53,6 +54,8 @@ namespace Xsd2.Cli
                     { "ei|exclude-imports", "Exclude imported types", s => options.ExcludeImportedTypes = s != null },
                     { "ein|exclude-imports-by-name", "Exclude imported types by name", s => options.ExcludeImportedTypes = options.ExcludeImportedTypesByNameAndNamespace = s != null },
                     { "nullable", "Use nullable types", s => options.UseNullableTypes = options.HideUnderlyingNullableProperties = s != null },
+                    { "additional-root=", "Adds an additional xml root type", s => options.AdditionalRootTypes.Add(s) },
+                    { "all-types-are-root", "All xml types should also be declared as root types", s => options.AllTypesAreRoot = s != null },
                     { "all", "Enable all flags", s =>
                     {
                         stripDebuggerStepThroughAttribute = options.UseLists = options.UseNullableTypes = options.ExcludeImportedTypes = options.MixedContent = s != null;

@@ -65,6 +65,12 @@ namespace Xsd2.Cmdlets
         [Parameter(HelpMessage = "Sets a list of xml type names to exclude")]
         public string[] ExcludeXmlTypes { get; set; }
 
+        [Parameter(HelpMessage = "Sets a list of additional xml root types")]
+        public string[] AdditionalRootTypes { get; set; }
+
+        [Parameter(HelpMessage = "All xml types should also be root types")]
+        public SwitchParameter AllTypesAreRoot { get; set; }
+
         [Parameter(ParameterSetName = ExplicitParameterSetName, HelpMessage = "Exclude imported types")]
         public SwitchParameter ExcludeImports { get; set; }
 
@@ -109,7 +115,9 @@ namespace Xsd2.Cmdlets
                 EnumValueCapitalizer = EnumCapitalizer ?? new NoneCapitalizer(),
                 TypeNameCapitalizer = TypeCapitalizer ?? new NoneCapitalizer(),
                 PropertyNameCapitalizer = PropertyCapitalizer ?? new NoneCapitalizer(),
-                ExcludeXmlTypes = new System.Collections.Generic.HashSet<string>(ExcludeXmlTypes ?? Enumerable.Empty<string>())
+                ExcludeXmlTypes = new System.Collections.Generic.HashSet<string>(ExcludeXmlTypes ?? Enumerable.Empty<string>()),
+                AdditionalRootTypes = new System.Collections.Generic.HashSet<string>(AdditionalRootTypes ?? Enumerable.Empty<string>()),
+                AllTypesAreRoot = AllTypesAreRoot.ToBool()
             };
 
             if (PclTarget)

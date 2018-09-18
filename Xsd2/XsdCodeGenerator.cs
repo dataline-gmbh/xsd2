@@ -425,6 +425,20 @@ namespace Xsd2
                     });
                 }
 
+                if ((Options.AllTypesAreRoot || Options.AdditionalRootTypes.Contains(codeType.Name)) &&
+                    !codeType.CustomAttributes.Cast<CodeAttributeDeclaration>().Any(x => x.Name == "System.Xml.Serialization.XmlRootAttribute"))
+                {
+                    var typeAttribute = codeType.CustomAttributes.Cast<CodeAttributeDeclaration>().FirstOrDefault(x => x.Name == "System.Xml.Serialization.XmlTypeAttribute");
+                    var ns = typeAttribute?.Arguments?.Cast<CodeAttributeArgument>().FirstOrDefault(x => x.Name == "Namespace");
+                    if (ns != null)
+                    {
+                        var rootAttribute = new CodeAttributeDeclaration("System.Xml.Serialization.XmlRootAttribute",
+                            ns, new CodeAttributeArgument("IsNullable", new CodePrimitiveExpression(false)));
+
+                        codeType.CustomAttributes.Add(rootAttribute);
+                    }
+                }
+
                 bool mixedContentDetected = Options.MixedContent && members.ContainsKey("textField") && members.ContainsKey("itemsField");
 
                 var binaryDataTypes = new[] { "hexBinary", "base64Binary" };

@@ -25,6 +25,9 @@ namespace Xsd2
         public List<String> UsingNamespaces { get; set; }
         public HashSet<string> ExcludeXmlTypes { get; set; }
 
+        public HashSet<string> AdditionalRootTypes { get; set; }
+        public bool AllTypesAreRoot { get; set; }
+
         public XsdCodeGeneratorOutputLanguage Language { get; set; }
         public string OutputNamespace { get; set; }
         public bool WriteFileHeader { get; set; }
