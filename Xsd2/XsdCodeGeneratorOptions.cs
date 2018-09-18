@@ -23,6 +23,10 @@ namespace Xsd2
         public bool UseNullableTypes { get; set; }
         public List<String> Imports { get; set; }
         public List<String> UsingNamespaces { get; set; }
+        public HashSet<string> ExcludeXmlTypes { get; set; }
+
+        public HashSet<string> AdditionalRootTypes { get; set; }
+        public bool AllTypesAreRoot { get; set; }
 
         public XsdCodeGeneratorOutputLanguage Language { get; set; }
         public string OutputNamespace { get; set; }

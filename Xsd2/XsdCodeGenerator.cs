@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Reflection;
 using System.Xml.Schema;
 using System.Xml.Serialization;
 using System.CodeDom;
@@ -10,9 +10,6 @@ using System.CodeDom.Compiler;
 using System.ComponentModel;
 
 using Microsoft.CSharp;
-using System.IO;
-using System.Diagnostics;
-
 using Microsoft.VisualBasic;
 
 using Xsd2.Capitalizers;
@@ -89,7 +86,7 @@ namespace Xsd2
             foreach (var xsd in inputs)
                 foreach (XmlSchemaElement schemaElement in xsd.Elements.Values)
                 {
-                    if (!ElementBelongsToImportedSchema(schemaElement))
+                    if (!ElementBelongsToImportedSchema(schemaElement) && !ExcludeName(schemaElement))
                         maps.Add(schemaImporter.ImportTypeMapping(schemaElement.QualifiedName));
                 }
 
@@ -97,12 +94,18 @@ namespace Xsd2
             foreach (var xsd in inputs)
                 foreach (XmlSchemaComplexType schemaElement in xsd.Items.OfType<XmlSchemaComplexType>())
                 {
+                    if (ExcludeName(schemaElement))
+                        continue;
+
                     maps.Add(schemaImporter.ImportSchemaType(schemaElement.QualifiedName));
                 }
 
             foreach (var xsd in inputs)
                 foreach (XmlSchemaSimpleType schemaElement in xsd.Items.OfType<XmlSchemaSimpleType>())
                 {
+                    if (ExcludeName(schemaElement))
+                        continue;
+
                     maps.Add(schemaImporter.ImportSchemaType(schemaElement.QualifiedName));
                 }
 
@@ -111,8 +114,11 @@ namespace Xsd2
                 codeExporter.ExportTypeMapping(map);
             }
 
-            foreach (var xsd in inputs)
-                ImproveCodeDom(codeNamespace, xsd);
+            ImproveCodeDom(codeNamespace);
+
+            var usageTree = new UsageTree(codeNamespace);
+
+            RemoveElements(codeNamespace, inputs, usageTree);
 
             if (OnValidateGeneratedCode != null)
                 foreach (var xsd in inputs)
@@ -184,12 +190,30 @@ namespace Xsd2
             return false;
         }
 
+        private bool ExcludeName(XmlSchemaType type)
+        {
+            return ExcludeName(type.QualifiedName.ToString());
+        }
+
+        private bool ExcludeName(XmlSchemaElement type)
+        {
+            return ExcludeName(type.QualifiedName.ToString());
+        }
+
+        private bool ExcludeName(string qualifiedName)
+        {
+            if (Options.ExcludeXmlTypes == null)
+                return false;
+
+            return Options.ExcludeXmlTypes.Contains(qualifiedName);
+        }
+
         /// <summary>
         /// Shamelessly taken from Xsd2Code project
-        /// </summary>       
+        /// </summary>
         private bool ContainsTypeName(XmlSchema schema, CodeTypeDeclaration type)
         {
-            //TODO: Does not work for combined anonymous types 
+            //TODO: Does not work for combined anonymous types
             //fallback: Check if the namespace attribute of the type equals the namespace of the file.
             //first, find the XmlType attribute.
             var ns = ExtractNamespace(type);
@@ -199,12 +223,14 @@ namespace Xsd2
             if (!Options.ExcludeImportedTypesByNameAndNamespace)
                 return true;
 
+            string typeName = type.GetXmlName();
+
             foreach (var item in schema.Items)
             {
                 var complexItem = item as XmlSchemaComplexType;
                 if (complexItem != null)
                 {
-                    if (complexItem.Name == type.Name)
+                    if (complexItem.Name == typeName)
                     {
                         return true;
                     }
@@ -213,7 +239,7 @@ namespace Xsd2
                 var simpleItem = item as XmlSchemaSimpleType;
                 if (simpleItem != null)
                 {
-                    if (simpleItem.Name == type.Name)
+                    if (simpleItem.Name == typeName)
                     {
                         return true;
                     }
@@ -223,7 +249,7 @@ namespace Xsd2
                 var elementItem = item as XmlSchemaElement;
                 if (elementItem != null)
                 {
-                    if (elementItem.Name == type.Name)
+                    if (elementItem.Name == typeName)
                     {
                         return true;
                     }
@@ -252,7 +278,66 @@ namespace Xsd2
             return null;
         }
 
-        private void ImproveCodeDom(CodeNamespace codeNamespace, XmlSchema schema)
+        private void RemoveElements(CodeNamespace codeNamespace, IReadOnlyCollection<XmlSchema> inputs, UsageTree usageTree)
+        {
+            // Remove attributes
+            foreach (CodeTypeDeclaration codeType in codeNamespace.Types)
+            {
+                var attributesToRemove = new HashSet<CodeAttributeDeclaration>();
+                foreach (CodeAttributeDeclaration att in codeType.CustomAttributes)
+                {
+                    if (Options.AttributesToRemove.Contains(att.Name))
+                    {
+                        attributesToRemove.Add(att);
+                    }
+                    else
+                    {
+                        switch (att.Name)
+                        {
+                            case "System.Xml.Serialization.XmlRootAttribute":
+                                var nullableArgument = att.Arguments.Cast<CodeAttributeArgument>().FirstOrDefault(x => x.Name == "IsNullable");
+                                if (codeType.IsEnum || (nullableArgument != null && (bool)((CodePrimitiveExpression)nullableArgument.Value).Value))
+                                {
+                                    // Remove nullable root attribute
+                                    attributesToRemove.Add(att);
+                                }
+                                break;
+                        }
+                    }
+                }
+
+                foreach (var att in attributesToRemove)
+                    codeType.CustomAttributes.Remove(att);
+            }
+
+            // Remove types
+            if (Options.ExcludeImportedTypes && Options.Imports != null && Options.Imports.Count > 0)
+            {
+                var removedTypes = codeNamespace.Types.Cast<CodeTypeDeclaration>().ToList();
+                var anonymousTypes = new List<CodeTypeDeclaration>();
+
+                while (removedTypes.RemoveAll(codeType =>
+                {
+                    if ((codeType.IsAnonymousType() && !codeType.IsRootType()) || codeType.IsIncludeInSchemaFalse())
+                    {
+                        if (!usageTree.LookupUsages(codeType).All(x => removedTypes.Contains(x.Type)))
+                            return true;
+                    }
+                    else if (inputs.Any(schema => ContainsTypeName(schema, codeType)))
+                    {
+                        return true;
+                    }
+
+                    return false;
+                }) > 0);
+
+                // Remove types
+                foreach (var rt in removedTypes)
+                    codeNamespace.Types.Remove(rt);
+            }
+        }
+
+        private void ImproveCodeDom(CodeNamespace codeNamespace)
         {
             var nonElementAttributes = new HashSet<string>(new[]
             {
@@ -273,8 +358,6 @@ namespace Xsd2
             var neverBrowsableAttribute = new CodeAttributeDeclaration("System.ComponentModel.EditorBrowsable",
                 new CodeAttributeArgument(new CodeFieldReferenceExpression(new CodeTypeReferenceExpression("System.ComponentModel.EditorBrowsableState"), "Never")));
 
-            var removedTypes = new List<CodeTypeDeclaration>();
-
             var changedTypeNames = new Dictionary<string, string>();
             var newTypeNames = new HashSet<string>();
 
@@ -287,41 +370,6 @@ namespace Xsd2
 
             foreach (CodeTypeDeclaration codeType in codeNamespace.Types)
             {
-                if (Options.ExcludeImportedTypes && Options.Imports != null && Options.Imports.Count > 0)
-                    if (!ContainsTypeName(schema, codeType))
-                    {
-                        removedTypes.Add(codeType);
-                        continue;
-                    }
-
-                var attributesToRemove = new HashSet<CodeAttributeDeclaration>();
-                foreach (CodeAttributeDeclaration att in codeType.CustomAttributes)
-                {
-                    if (Options.AttributesToRemove.Contains(att.Name))
-                    {
-                        attributesToRemove.Add(att);
-                    }
-                    else
-                    {
-                        switch (att.Name)
-                        {
-                            case "System.Xml.Serialization.XmlRootAttribute":
-                                var nullableArgument = att.Arguments.Cast<CodeAttributeArgument>().FirstOrDefault(x => x.Name == "IsNullable");
-                                if (nullableArgument != null && (bool) ((CodePrimitiveExpression) nullableArgument.Value).Value)
-                                {
-                                    // Remove nullable root attribute
-                                    attributesToRemove.Add(att);
-                                }
-                                break;
-                        }
-                    }
-                }
-
-                foreach (var att in attributesToRemove)
-                {
-                    codeType.CustomAttributes.Remove(att);
-                }
-
                 if (Options.TypeNameCapitalizer != null)
                 {
                     var newName = Options.TypeNameCapitalizer.Capitalize(codeNamespace, codeType);
@@ -377,7 +425,31 @@ namespace Xsd2
                     });
                 }
 
+                if ((Options.AllTypesAreRoot || Options.AdditionalRootTypes.Contains(codeType.Name)) &&
+                    !codeType.CustomAttributes.Cast<CodeAttributeDeclaration>().Any(x => x.Name == "System.Xml.Serialization.XmlRootAttribute"))
+                {
+                    var typeAttribute = codeType.CustomAttributes.Cast<CodeAttributeDeclaration>().FirstOrDefault(x => x.Name == "System.Xml.Serialization.XmlTypeAttribute");
+                    var ns = typeAttribute?.Arguments?.Cast<CodeAttributeArgument>().FirstOrDefault(x => x.Name == "Namespace");
+                    if (ns != null)
+                    {
+                        var rootAttribute = new CodeAttributeDeclaration("System.Xml.Serialization.XmlRootAttribute",
+                            ns, new CodeAttributeArgument("IsNullable", new CodePrimitiveExpression(false)));
+
+                        codeType.CustomAttributes.Add(rootAttribute);
+                    }
+                }
+
                 bool mixedContentDetected = Options.MixedContent && members.ContainsKey("textField") && members.ContainsKey("itemsField");
+
+                var binaryDataTypes = new[] { "hexBinary", "base64Binary" };
+
+                bool IsItemsChoiceType(CodeTypeReference reference) => reference.BaseType.StartsWith("ItemsChoiceType");
+
+                var fieldNameToPropertyMapping = members.Values.OfType<CodeMemberProperty>().Select(x => new
+                {
+                    Property = x,
+                    FieldName = (x.GetStatements.OfType<CodeMethodReturnStatement>().SingleOrDefault()?.Expression as CodeFieldReferenceExpression)?.FieldName
+                }).Where(x => x.FieldName != null).ToDictionary(x => x.FieldName, x => x.Property);
 
                 var orderIndex = 0;
                 foreach (CodeTypeMember member in members.Values)
@@ -385,6 +457,12 @@ namespace Xsd2
                     if (member is CodeMemberField)
                     {
                         CodeMemberField field = (CodeMemberField)member;
+
+                        if (!fieldNameToPropertyMapping.TryGetValue(field.Name, out var backedProperty))
+                            backedProperty = null;
+
+                        bool isBinaryDataType = binaryDataTypes.Contains(backedProperty?.GetXmlDataType());
+                        bool isItems = IsItemsChoiceType(field.Type) || backedProperty?.HasChoiceIdentifierAttribute() == true;
 
                         if (mixedContentDetected)
                         {
@@ -399,7 +477,7 @@ namespace Xsd2
                             }
                         }
 
-                        if (Options.UseLists && field.Type.ArrayRank > 0)
+                        if (Options.UseLists && field.Type.ArrayRank > 0 && !isBinaryDataType && !isItems)
                         {
                             CodeTypeReference type = new CodeTypeReference(typeof(List<>))
                             {
@@ -430,6 +508,9 @@ namespace Xsd2
                         // Is this "*Specified" property part of a "propertyName" and "propertyNameSpecified" combination?
                         var isSpecifiedProperty = property.Name.EndsWith("Specified") && members.ContainsKey(property.Name.Substring(0, property.Name.Length - 9));
 
+                        bool isBinaryDataType = binaryDataTypes.Contains(property.GetXmlDataType());
+                        bool isItems = IsItemsChoiceType(property.Type) || property.HasChoiceIdentifierAttribute();
+
                         if (mixedContentDetected)
                         {
                             switch (property.Name)
@@ -444,7 +525,43 @@ namespace Xsd2
                             }
                         }
 
-                        if (Options.UseLists && property.Type.ArrayRank > 0)
+                        string[] validXmlAttributeNames =
+                        {
+                            "System.Xml.Serialization.XmlEnumAttribute",
+                            "System.Xml.Serialization.XmlTextAttribute",
+                            "System.Xml.Serialization.XmlIgnoreAttribute",
+                            "System.Xml.Serialization.XmlAttributeAttribute",
+                            "System.Xml.Serialization.XmlElementAttribute",
+                            "System.Xml.Serialization.XmlAnyAttributeAttribute",
+                            "System.Xml.Serialization.XmlAnyElementAttribute",
+                        };
+
+                        var customAttributes = property.CustomAttributes.Cast<CodeAttributeDeclaration>();
+                        var customAttributeNames = new HashSet<string>(customAttributes.Select(x => x.Name));
+                        if (!customAttributeNames.Overlaps(validXmlAttributeNames))
+                        {
+                            // is this an array item?
+                            bool arrayItem = property
+                                .CustomAttributes.Cast<CodeAttributeDeclaration>()
+                                .Any(x => x.Name == "System.Xml.Serialization.XmlArrayItemAttribute");
+                            if (arrayItem)
+                            {
+                                property.CustomAttributes.Add(new CodeAttributeDeclaration
+                                {
+                                    Name = "System.Xml.Serialization.XmlArrayAttribute"
+                                });
+                            }
+                            else
+                            {
+                                // It is implied that this is an xml element. Explicitly add the corresponding attribute.
+                                property.CustomAttributes.Add(new CodeAttributeDeclaration
+                                {
+                                    Name = "System.Xml.Serialization.XmlElementAttribute"
+                                });
+                            }
+                        }
+
+                        if (Options.UseLists && property.Type.ArrayRank > 0 && !isBinaryDataType && !isItems)
                         {
                             CodeTypeReference type = new CodeTypeReference(typeof(List<>))
                             {
@@ -460,6 +577,29 @@ namespace Xsd2
                         bool capitalizeProperty;
                         if (!isSpecifiedProperty)
                         {
+                            if (Options.PreserveOrder)
+                            {
+                                if (!property.CustomAttributes.Cast<CodeAttributeDeclaration>().Any(x => nonElementAttributes.Contains(x.Name)))
+                                {
+                                    var elementAttributes = property
+                                        .CustomAttributes.Cast<CodeAttributeDeclaration>()
+                                        .Where(x => x.Name == "System.Xml.Serialization.XmlElementAttribute" || x.Name == "System.Xml.Serialization.XmlArrayAttribute")
+                                        .ToList();
+                                    if (elementAttributes.Count == 0)
+                                    {
+                                        // This should not happen (we implicitly add either XmlElementAttribute or XmlArrayAttribute above)
+                                        throw new Exception("should not happen");
+                                    }
+
+                                    foreach (var elementAttribute in elementAttributes)
+                                    {
+                                        elementAttribute.Arguments.Add(new CodeAttributeArgument("Order", new CodePrimitiveExpression(orderIndex)));
+                                    }
+
+                                    orderIndex += 1;
+                                }
+                            }
+
                             if (Options.UseNullableTypes)
                             {
                                 var fieldName = GetFieldName(property.Name, "Field");
@@ -506,12 +646,32 @@ namespace Xsd2
                                     codeType.Members.Add(nullableProperty);
 
                                     foreach (CodeAttributeDeclaration attribute in property.CustomAttributes)
+                                    {
                                         if (attribute.Name == "System.Xml.Serialization.XmlAttributeAttribute")
-                                            attribute.Arguments.Add(new CodeAttributeArgument
+                                        {
+                                            var firstArgument = attribute.Arguments.Cast<CodeAttributeArgument>().FirstOrDefault();
+                                            if (firstArgument == null || !string.IsNullOrEmpty(firstArgument.Name))
                                             {
-                                                Name = "AttributeName",
-                                                Value = new CodePrimitiveExpression(property.Name)
-                                            });
+                                                attribute.Arguments.Add(new CodeAttributeArgument
+                                                {
+                                                    Name = "AttributeName",
+                                                    Value = new CodePrimitiveExpression(property.Name)
+                                                });
+                                            }
+                                        }
+                                        else if (attribute.Name == "System.Xml.Serialization.XmlElementAttribute")
+                                        {
+                                            var firstArgument = attribute.Arguments.Cast<CodeAttributeArgument>().FirstOrDefault();
+                                            if (firstArgument == null || !string.IsNullOrEmpty(firstArgument.Name))
+                                            {
+                                                attribute.Arguments.Add(new CodeAttributeArgument
+                                                {
+                                                    Name = "ElementName",
+                                                    Value = new CodePrimitiveExpression(property.Name)
+                                                });
+                                            }
+                                        }
+                                    }
 
                                     property.Name = "_" + property.Name;
                                     specified.Name = "_" + specified.Name;
@@ -523,30 +683,6 @@ namespace Xsd2
                                     }
 
                                     property = nullableProperty;
-                                }
-                            }
-
-                            if (Options.PreserveOrder)
-                            {
-                                if (!property.CustomAttributes.Cast<CodeAttributeDeclaration>().Any(x => nonElementAttributes.Contains(x.Name)))
-                                {
-                                    var elementAttributes = property
-                                        .CustomAttributes.Cast<CodeAttributeDeclaration>()
-                                        .Where(x => x.Name == "System.Xml.Serialization.XmlElementAttribute")
-                                        .ToList();
-                                    if (elementAttributes.Count == 0)
-                                    {
-                                        var elementAttribute = new CodeAttributeDeclaration("System.Xml.Serialization.XmlElementAttribute");
-                                        property.CustomAttributes.Add(elementAttribute);
-                                        elementAttributes.Add(elementAttribute);
-                                    }
-
-                                    foreach (var elementAttribute in elementAttributes)
-                                    {
-                                        elementAttribute.Arguments.Add(new CodeAttributeArgument("Order", new CodePrimitiveExpression(orderIndex)));
-                                    }
-
-                                    orderIndex += 1;
                                 }
                             }
 
@@ -583,10 +719,6 @@ namespace Xsd2
                     }
                 }
             }
-
-            // Remove types
-            foreach (var rt in removedTypes)
-                codeNamespace.Types.Remove(rt);
 
             // Fixup changed type names
             if (changedTypeNames.Count != 0)
@@ -708,6 +840,64 @@ namespace Xsd2
         private static string GetFieldName(string p, string suffix = null)
         {
             return p.Substring(0, 1).ToLower() + p.Substring(1) + suffix;
+        }
+
+        private class UsageTree
+        {
+            private readonly ILookup<string, Reference> _tree;
+
+            public UsageTree(CodeNamespace codeNamespace)
+            {
+                _tree = BuildReferences(codeNamespace).ToLookup(x => GetElementType(x.Item1), x => x.Item2);
+            }
+
+            public IEnumerable<Reference> LookupUsages(CodeTypeDeclaration typeDeclaration)
+            {
+                return _tree[typeDeclaration.Name];
+            }
+
+            private static IEnumerable<Tuple<CodeTypeReference, Reference>> BuildReferences(CodeNamespace codeNamespace)
+            {
+                foreach (CodeTypeDeclaration codeType in codeNamespace.Types)
+                {
+                    foreach (CodeTypeMember member in codeType.Members)
+                    {
+                        if (member is CodeMemberProperty property)
+                        {
+                            var reference = new Reference(codeType, property);
+
+                            yield return Tuple.Create(property.Type, reference);
+
+                            foreach (var xmlType in property.GetXmlTypes())
+                            {
+                                yield return Tuple.Create(xmlType, reference);
+                            }
+                        }
+                    }
+                }
+            }
+
+            private static string GetElementType(CodeTypeReference typeReference)
+            {
+                if (typeReference.ArrayRank != 0)
+                    return typeReference.ArrayElementType.BaseType;
+                if (typeReference.BaseType.EndsWith(".List`1", StringComparison.Ordinal))
+                    return typeReference.TypeArguments[0].BaseType;
+                return typeReference.BaseType;
+            }
+
+            public struct Reference
+            {
+                public Reference(CodeTypeDeclaration type, CodeMemberProperty property)
+                {
+                    Type = type;
+                    Property = property;
+                }
+
+                public CodeTypeDeclaration Type { get; }
+
+                public CodeMemberProperty Property { get; }
+            }
         }
     }
 }

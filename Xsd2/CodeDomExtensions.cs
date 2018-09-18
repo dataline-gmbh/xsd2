@@ -63,6 +63,15 @@ namespace Xsd2
             return attribute.IsAnonymousTypeArgument();
         }
 
+        public static bool IsRootType(this CodeTypeMember member)
+        {
+            var attribute = member
+                .CustomAttributes
+                .Cast<CodeAttributeDeclaration>()
+                .FirstOrDefault(x => x.Name == "System.Xml.Serialization.XmlRootAttribute");
+            return attribute != null;
+        }
+
         public static bool IsAnonymousTypeArgument(this CodeAttributeDeclaration attribute)
         {
             var anonymousTypeArgument = attribute
@@ -70,6 +79,33 @@ namespace Xsd2
                 .Cast<CodeAttributeArgument>()
                 .FirstOrDefault(x => x.Name == "AnonymousType");
             return anonymousTypeArgument != null;
+        }
+
+        public static bool HasChoiceIdentifierAttribute(this CodeTypeMember member)
+        {
+            return member
+                .CustomAttributes
+                .Cast<CodeAttributeDeclaration>()
+                .Any(x => x.Name == "System.Xml.Serialization.XmlChoiceIdentifierAttribute");
+        }
+
+        public static bool IsIncludeInSchemaFalse(this CodeTypeMember member)
+        {
+            var attribute = member
+                .CustomAttributes
+                .Cast<CodeAttributeDeclaration>()
+                .FirstOrDefault(x => x.Name == "System.Xml.Serialization.XmlTypeAttribute");
+            if (attribute == null)
+                return false;
+
+            var includeInSchemaArgument = attribute
+                .Arguments
+                .Cast<CodeAttributeArgument>()
+                .FirstOrDefault(x => x.Name == "IncludeInSchema");
+            if (includeInSchemaArgument == null)
+                return false;
+
+            return !(bool)((CodePrimitiveExpression)includeInSchemaArgument.Value).Value;
         }
 
         public static string GetNamespace(this CodeTypeMember member)
@@ -89,6 +125,95 @@ namespace Xsd2
                 return string.Empty;
 
             return (string) ((CodePrimitiveExpression) namespaceArgument.Value).Value;
+        }
+
+        public static string GetXmlName(this CodeTypeMember member)
+        {
+            return GetXmlName(member, "System.Xml.Serialization.XmlTypeAttribute", "TypeName") ??
+                GetXmlName(member, "System.Xml.Serialization.XmlRootAttribute", "ElementName") ??
+                GetXmlName(member, "System.Xml.Serialization.XmlElementAttribute", "ElementName") ??
+                GetXmlName(member, "System.Xml.Serialization.XmlAttributeAttribute", "AttributeName") ??
+                member.Name;
+        }
+
+        public static CodeTypeReference[] GetXmlTypes(this CodeTypeMember member)
+        {
+            var attributes = member
+                .CustomAttributes
+                .Cast<CodeAttributeDeclaration>()
+                .Where(x => x.Name == "System.Xml.Serialization.XmlElementAttribute" || x.Name == "System.Xml.Serialization.XmlAttributeAttribute");
+
+            CodeTypeReference GetTypeName(CodeAttributeDeclaration attribute)
+            {
+                var arguments = attribute
+                    .Arguments
+                    .Cast<CodeAttributeArgument>()
+                    .ToArray();
+
+                var typeArgument = arguments.FirstOrDefault(x => x.Name == "Type");
+                if (typeArgument == null && arguments.Length >= 2)
+                {
+                    // Is the second parameter a type?
+                    var arg2 = arguments[1];
+                    if (string.IsNullOrEmpty(arg2.Name) && arg2.Value is CodeTypeOfExpression)
+                        typeArgument = arg2;
+                }
+                if (typeArgument == null && arguments.Length == 1 && string.IsNullOrEmpty(arguments[0].Name) && arguments[0].Value is CodeTypeOfExpression)
+                    typeArgument = arguments[0];
+
+                if (typeArgument == null)
+                    return null;
+
+                return ((CodeTypeOfExpression)typeArgument.Value).Type;
+            }
+
+            return attributes.Select(GetTypeName).Where(x => x != null).ToArray();
+        }
+
+        public static string GetXmlDataType(this CodeTypeMember member)
+        {
+            var attribute = member
+                .CustomAttributes
+                .Cast<CodeAttributeDeclaration>()
+                .FirstOrDefault(x => x.Name == "System.Xml.Serialization.XmlElementAttribute" ||
+                    x.Name == "System.Xml.Serialization.XmlAttributeAttribute" ||
+                    x.Name == "System.Xml.Serialization.XmlTextAttribute");
+
+            if (attribute == null)
+                return null;
+
+            var dataTypeArgument = attribute
+                .Arguments
+                .Cast<CodeAttributeArgument>()
+                .FirstOrDefault(x => x.Name == "DataType");
+
+            if (dataTypeArgument == null)
+                return null;
+
+            return (string)((CodePrimitiveExpression)dataTypeArgument.Value).Value;
+        }
+
+        private static string GetXmlName(CodeTypeMember member, string attributeTypeName, string nameParameterName)
+        {
+            var attribute = member
+                .CustomAttributes
+                .Cast<CodeAttributeDeclaration>()
+                .FirstOrDefault(x => x.Name == attributeTypeName);
+            if (attribute == null)
+                return null;
+
+            var namespaceArgument = attribute
+               .Arguments
+               .Cast<CodeAttributeArgument>()
+               .FirstOrDefault(x => x.Name == nameParameterName);
+            if (namespaceArgument != null)
+                return (string)((CodePrimitiveExpression)namespaceArgument.Value).Value;
+
+            var firstArgument = attribute.Arguments.Cast<CodeAttributeArgument>().FirstOrDefault();
+            if (firstArgument != null && string.IsNullOrEmpty(firstArgument.Name))
+                return (string)((CodePrimitiveExpression)firstArgument.Value).Value;
+
+            return null;
         }
 
         public static IEnumerable<string> GetNamesFromItems(this CodeNamespace codeNamespace, string typeName)
