@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns="http://example.com" xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://example.com" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1">
+	<xs:attributeGroup name="grp">
+		<xs:attribute name="a1" type="xs:integer" use="required"/>
+		<xs:attributeGroup ref="nested_grp"/>
+	</xs:attributeGroup>
+	<xs:attributeGroup name="nested_grp">
+		<xs:attribute name="a2" type="xs:integer" use="required"/>
+		<xs:attribute name="a3" type="xs:integer" use="optional"/>
+	</xs:attributeGroup>
+
+	<xs:element name="Test">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="TestElement" type="xs:string" />
+			</xs:sequence>
+			<xs:attributeGroup ref="grp" />
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

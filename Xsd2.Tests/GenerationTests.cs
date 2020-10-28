@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.IO;
+using System.Text;
 
 using Xsd2.Capitalizers;
 using Xunit;
@@ -77,6 +78,29 @@ namespace Xsd2.Tests
                 var generator = new XsdCodeGenerator() { Options = options };
                 generator.Generate(new[] { @"Schemas\Form.xsd" }, o);
             }
+        }
+
+        [Fact]
+        public void TestNested()
+        {
+            var options = new XsdCodeGeneratorOptions
+            {
+                OutputNamespace = "XSD2",
+                FixXsds = true
+            };
+
+            var sb = new StringBuilder();
+            using (var o = new StringWriter(sb))
+            {
+                var generator = new XsdCodeGenerator() { Options = options };
+                generator.Generate(new[] { @"Schemas\NestedAttributeGroup.xsd" }, o);
+            }
+
+            string result = sb.ToString();
+
+            Assert.Contains("a1", result);
+            Assert.Contains("a2", result);
+            Assert.Contains("a3", result);
         }
 
     }

@@ -8,6 +8,7 @@ using System.Xml.Serialization;
 using System.CodeDom;
 using System.CodeDom.Compiler;
 using System.ComponentModel;
+using System.Xml;
 
 using Microsoft.CSharp;
 using Microsoft.VisualBasic;
@@ -65,12 +66,28 @@ namespace Xsd2
 
             foreach (var path in schemas)
             {
+                XmlSchema xsd;
+
                 using (var r = File.OpenText(path))
                 {
-                    XmlSchema xsd = XmlSchema.Read(r, null);
-                    xsds.Add(xsd);
-                    inputs.Add(xsd);
+                    if (Options.FixXsds)
+                    {
+                        var document =  new XmlDocument();
+                        document.Load(r);
+
+                        FixXsd(document);
+
+                        using (var nodeReader = new XmlNodeReader(document))
+                            xsd = XmlSchema.Read(nodeReader, null);
+                    }
+                    else
+                    {
+                        xsd = XmlSchema.Read(r, null);
+                    }
                 }
+
+                xsds.Add(xsd);
+                inputs.Add(xsd);
             }
 
             xsds.Compile(null, true);
@@ -425,7 +442,7 @@ namespace Xsd2
                     });
                 }
 
-                if ((Options.AllTypesAreRoot || Options.AdditionalRootTypes.Contains(codeType.Name)) &&
+                if ((Options.AllTypesAreRoot || (Options.AdditionalRootTypes?.Contains(codeType.Name) ?? false)) &&
                     !codeType.CustomAttributes.Cast<CodeAttributeDeclaration>().Any(x => x.Name == "System.Xml.Serialization.XmlRootAttribute"))
                 {
                     var typeAttribute = codeType.CustomAttributes.Cast<CodeAttributeDeclaration>().FirstOrDefault(x => x.Name == "System.Xml.Serialization.XmlTypeAttribute");
@@ -835,6 +852,44 @@ namespace Xsd2
                 if (!hasNameAttribute)
                     attribute.Arguments.Insert(0, nameArgument);
             }
+        }
+
+        private static void FixXsd(XmlDocument xsd)
+        {
+            var nsManager = new XmlNamespaceManager(xsd.NameTable);
+            nsManager.AddNamespace("xs", "http://www.w3.org/2001/XMLSchema");
+
+            bool madeChanges;
+            do
+            {
+                madeChanges = false;
+
+                // The XSD tool does not support nested attributeGroups, so try to flatten them here
+                // https://social.msdn.microsoft.com/Forums/en-US/707c8a47-a29f-4262-b052-ac66dc99d604/nested-xml-attribute-groups?forum=asmxandxml
+                foreach (XmlNode node in xsd.SelectNodes("//xs:schema/xs:attributeGroup", nsManager))
+                {
+                    var innerGroups = node.SelectNodes("xs:attributeGroup", nsManager);
+                    foreach (XmlNode innerGroup in innerGroups)
+                    {
+                        var refAttr = innerGroup.Attributes["ref"];
+                        if (refAttr == null)
+                            continue;
+
+                        var refGroup = xsd.SelectSingleNode($"//xs:schema/xs:attributeGroup[@name='{refAttr.Value}']", nsManager);
+                        if (refGroup == null)
+                            continue;
+
+                        node.RemoveChild(innerGroup);
+
+                        foreach (XmlNode childNode in refGroup.ChildNodes)
+                            node.AppendChild(childNode.CloneNode(true));
+
+                        madeChanges = true;
+                    }
+                }
+
+            }
+            while (madeChanges);
         }
 
         private static string GetFieldName(string p, string suffix = null)

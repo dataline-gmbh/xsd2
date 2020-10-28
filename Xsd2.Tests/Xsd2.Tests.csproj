@@ -14,4 +14,10 @@
     <ProjectReference Include="..\Xsd2\Xsd2.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Schemas\*">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

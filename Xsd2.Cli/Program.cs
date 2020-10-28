@@ -60,10 +60,12 @@ namespace Xsd2.Cli
                     {
                         stripDebuggerStepThroughAttribute = options.UseLists = options.UseNullableTypes = options.ExcludeImportedTypes = options.MixedContent = s != null;
                         options.PropertyNameCapitalizer = new FirstCharacterCapitalizer();
+                        options.FixXsds = true;
                     } },
                     { "combine:", "Combine output to a single file", s => { combine = true; outputFileName = s; } },
                     { "c|classes", "Generates classes for the schema", s => { }, true },
                     { "nologo", "Suppresses application banner", s => { }, true },
+                    { "fix-xsds", "Configures whether the tool should try and fix unparsable XSDs", s => options.FixXsds = true },
                 };
 
                 var inputs = optionSet.Parse(args);

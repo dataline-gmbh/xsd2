@@ -39,5 +39,10 @@ namespace Xsd2
         public bool ExcludeImportedTypesByNameAndNamespace { get; set; }
 
         public bool MixedContent { get; set; }
+
+        /// <summary>
+        /// Configures whether the tool should try and fix unparsable XSDs
+        /// </summary>
+        public bool FixXsds { get; set; }
     }
 }

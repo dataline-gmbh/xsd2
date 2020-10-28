@@ -86,6 +86,9 @@ namespace Xsd2.Cmdlets
         [Parameter(ParameterSetName = AllParameterSetName, HelpMessage = "Enable common flags")]
         public SwitchParameter All { get; set; }
 
+        [Parameter(ParameterSetName = ExplicitParameterSetName, HelpMessage = "Configures whether the tool should try and fix unparsable XSDs")]
+        public SwitchParameter FixXsds { get; set; }
+
         [Parameter(Mandatory = true, ValueFromRemainingArguments = true)]
         public string[] Inputs { get; set; }
 
@@ -117,7 +120,8 @@ namespace Xsd2.Cmdlets
                 PropertyNameCapitalizer = PropertyCapitalizer ?? new NoneCapitalizer(),
                 ExcludeXmlTypes = new System.Collections.Generic.HashSet<string>(ExcludeXmlTypes ?? Enumerable.Empty<string>()),
                 AdditionalRootTypes = new System.Collections.Generic.HashSet<string>(AdditionalRootTypes ?? Enumerable.Empty<string>()),
-                AllTypesAreRoot = AllTypesAreRoot.ToBool()
+                AllTypesAreRoot = AllTypesAreRoot.ToBool(),
+                FixXsds = FixXsds.ToBool() || All.ToBool()
             };
 
             if (PclTarget)
