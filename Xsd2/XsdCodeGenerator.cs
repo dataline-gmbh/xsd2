@@ -8,6 +8,7 @@ using System.Xml.Serialization;
 using System.CodeDom;
 using System.CodeDom.Compiler;
 using System.ComponentModel;
+using System.Text.RegularExpressions;
 using System.Xml;
 
 using Microsoft.CSharp;
@@ -19,6 +20,8 @@ namespace Xsd2
 {
     public class XsdCodeGenerator
     {
+        private static readonly Regex ItemsChoiceTypeNameRegex = new Regex(@"^Items\d*ChoiceType\d*$");
+
         public XsdCodeGeneratorOptions Options { get; set; }
         public Action<CodeNamespace, XmlSchema> OnValidateGeneratedCode { get; set; }
 
@@ -460,7 +463,7 @@ namespace Xsd2
 
                 var binaryDataTypes = new[] { "hexBinary", "base64Binary" };
 
-                bool IsItemsChoiceType(CodeTypeReference reference) => reference.BaseType.StartsWith("ItemsChoiceType");
+                bool IsItemsChoiceType(CodeTypeReference reference) => ItemsChoiceTypeNameRegex.IsMatch(reference.BaseType);
 
                 var fieldNameToPropertyMapping = members.Values.OfType<CodeMemberProperty>().Select(x => new
                 {
